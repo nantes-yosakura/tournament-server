@@ -1,3 +1,5 @@
 Flask
+Flask-Bootstrap
 Flask-Cors
+Flask-WTF
 google-cloud-datastore

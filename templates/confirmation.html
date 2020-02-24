@@ -1,0 +1,40 @@
+{% extends "bootstrap/base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% block html_attribs %} lang="fr"{% endblock %}
+{% block title %}Confirmation d'inscription au tournoi de Nantes 2020{% endblock %}
+{% block content %}
+<main>
+  <div class="container">
+    <div class="row">
+      <div class="col-sm">
+        <h1>Tournoi de Nantes 2020</h1>
+        <h2>Confirmation d'inscription</h2>
+        <p>Vous êtes bien inscrit⋅e, merci&nbsp;!</p>
+        <p>
+          <a href="https://nantes.jeudego.org/tournoi"
+            >Retour au site du tournoi</a
+          >
+        </p>
+      </div>
+    </div>
+  </div>
+</main>
+<footer style="padding-top: 2rem;">
+  <div class="container">
+    <div class="row">
+      <div class="col-md">
+        <a
+          rel="license"
+          href="http://creativecommons.org/publicdomain/zero/1.0/"
+        >
+          <img
+            src="https://licensebuttons.net/p/zero/1.0/80x15.png"
+            style="border-style: none;"
+            alt="CC0"
+          />
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>
+{% endblock %}
