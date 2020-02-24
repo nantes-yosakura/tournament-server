@@ -1,4 +1,3 @@
-from datetime import datetime
 from http import HTTPStatus
 from logging import getLogger
 from typing import Any, Tuple, Union
