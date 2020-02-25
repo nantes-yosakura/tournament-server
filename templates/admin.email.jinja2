@@ -1,0 +1,21 @@
+Bonjour,
+
+Une requête d'inscription vient d'être faite avec les informations suivantes :
+
+- prénom : {{ first_name }}
+- nom : {{ last_name }}
+- inscription : {{ subscription }}
+{% if subscription == "player" -%}
+- niveau : {{ level }}
+- club : {{ club }}
+{%- endif %}
+
+Pour valider l'inscription, merci de cliquer sur le lien suivant :
+
+https://nantes-tournament.appspot.com/confirm/{{ key_id }}/{{ salt }}
+
+Si cette inscription ne doit pas être validée (si c'est un spam), il convient de ne rien faire.
+
+Si tu as confirmé par erreur, contacte Hugo, il a accès à la base de données et peut régler le problème manuellement.
+
+L'équipe organisatrice.

@@ -1,5 +1,6 @@
 from http import HTTPStatus
 from logging import getLogger
+from secrets import token_urlsafe
 from typing import Any, Tuple, Union
 
 from flask import (
@@ -13,6 +14,9 @@ from flask_bootstrap import Bootstrap
 from flask_cors import CORS
 from flask_wtf import FlaskForm
 from google.cloud import datastore
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import ReplyTo
 from werkzeug import Response as WerkzeugResponse
 from wtforms import Field, Form, RadioField, SelectField, StringField, SubmitField
 from wtforms.validators import DataRequired, Email, Length
@@ -20,7 +24,7 @@ from wtforms.validators import DataRequired, Email, Length
 
 logger = getLogger(__name__)
 app = Flask(__name__)
-app.config.from_pyfile("secret_key.py")
+app.config.from_pyfile("config_secrets.py")
 Bootstrap(app)
 CORS(app)
 datastore_client = datastore.Client()
@@ -67,7 +71,7 @@ class SubscriptionForm(FlaskForm):
         validators=[
             DataRequired("Ce champ est obligatoire."),
             Length(
-                message="La taille de ce courriel doit être de %(min)d à %(max)d "
+                message="La taille de ce champ est limitée de %(min)d à %(max)d "
                 "caractères.",
                 min=1,
                 max=100,
@@ -80,7 +84,7 @@ class SubscriptionForm(FlaskForm):
         validators=[
             DataRequired("Ce champ est obligatoire."),
             Length(
-                message="La taille de ce courriel doit être de %(min)d à %(max)d "
+                message="La taille de ce champ est limitée de %(min)d à %(max)d "
                 "caractères.",
                 min=1,
                 max=100,
@@ -94,7 +98,7 @@ class SubscriptionForm(FlaskForm):
             DataRequired("Ce champ est obligatoire."),
             Email("Ce courriel est invalide."),
             Length(
-                message="La taille de ce courriel doit être de %(min)d à %(max)d "
+                message="La taille de ce champ est limitée de %(min)d à %(max)d "
                 "caractères.",
                 min=6,
                 max=100,
@@ -107,26 +111,24 @@ class SubscriptionForm(FlaskForm):
         validators=[DataRequired("Ce champ est obligatoire.")],
     )
     level = SelectField(
-        "Niveau (si vous vous inscrivez comme joueur⋅se)",
+        "Niveau (si tu t'inscris comme joueur⋅se)",
         choices=_levels,
         validators=[
             DataRequiredIf(
                 "subscription",
                 "player",
-                message="Ce champ est obligatoire si vous êtes inscrit⋅e comme "
-                "joueur⋅se.",
+                message="Ce champ est obligatoire si tu t'inscris comme joueur⋅se.",
             )
         ],
     )
     club = StringField(
-        "Club (si vous vous inscrivez comme joueur⋅se)",
+        "Club (si tu t'inscris comme joueur⋅se)",
         description="Exemple: 44Na",
         validators=[
             DataRequiredIf(
                 "subscription",
                 "player",
-                message="Ce champ est obligatoire si vous êtes inscrit⋅e comme "
-                "joueur⋅se.",
+                message="Ce champ est obligatoire si tu t'inscris comme joueur⋅se.",
             )
         ],
     )
@@ -142,31 +144,119 @@ def index() -> Response:
     """
     form = SubscriptionForm()
     if form.validate_on_submit():
-        entity = datastore.Entity(key=datastore_client.key("participant"))
+        first_name = form.first_name.data
+        last_name = form.last_name.data
+        email = form.email.data
+        subscription = form.subscription.data
+        level = form.level.data
+        club = form.club.data
+        salt = token_urlsafe(32)
+        entity = datastore.Entity(key=datastore_client.key("participants"))
         entity.update(
             {
-                "first-name": form.first_name.data,
-                "last-name": form.last_name.data,
-                "email": form.email.data,
-                "type": form.subscription.data,
+                "pending": True,
+                "salt": salt,
+                "first-name": first_name,
+                "last-name": last_name,
+                "email": email,
+                "type": subscription,
             }
         )
-        if form.subscription.data == "player":
-            entity.update({"level": form.level.data, "club": form.club.data})
+        if subscription == "player":
+            entity.update({"level": level, "club": club})
         app.logger.info("Persisting %s", entity)
         datastore_client.put(entity)
-        return redirect("/confirmation", code=HTTPStatus.FOUND)
-    return render_template("index.html", form=form)
+        key_id = entity.id
+        pending_email = Mail(
+            from_email="ne-pas-repondre@em5405.crydee.eu",
+            to_emails=email,
+            subject="Inscription en cours de validation pour le tournoi de Nantes 2020",
+            plain_text_content=render_template("pending.email.jinja2", name=first_name),
+        )
+        pending_email.reply_to = ReplyTo(
+            "clubyosakura@yahoo.fr", "Club Nantes Yosakura"
+        )
+        admin_email = Mail(
+            from_email="ne-pas-repondre@em5405.crydee.eu",
+            to_emails="mog@crydee.eu",
+            subject="Validation d'inscription nécessaire",
+            plain_text_content=render_template(
+                "admin.email.jinja2",
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                subscription=subscription,
+                level=level,
+                club=club,
+                salt=salt,
+                key_id=key_id,
+            ),
+        )
+        pending_email.reply_to = ReplyTo(
+            "clubyosakura@yahoo.fr", "Club Nantes Yosakura"
+        )
+        try:
+            sendgrid_client = SendGridAPIClient(app.config["SENDGRID_API_KEY"])
+            pending_response = sendgrid_client.send(pending_email)
+            app.logger.info(
+                "Sent pending email to %s with status %d",
+                email,
+                pending_response.status_code,
+            )
+            admin_response = sendgrid_client.send(admin_email)
+            app.logger.info(
+                "Sent admin email with status %d", admin_response.status_code,
+            )
+        except Exception as e:
+            app.logger.error("Could not send emails, with exception: %s", e)
+        return redirect("/en-attente", code=HTTPStatus.FOUND)
+    return render_template("index.html.jinja2", form=form)
 
 
-@app.route("/confirmation", methods=["GET"])
-def confirmation() -> Response:
+@app.route("/en-attente", methods=["GET"])
+def pending() -> Response:
+    """
+    Serve the pending validation page.
+
+    :return: Pending validation page.
+    """
+    return render_template("pending.html.jinja2")
+
+
+@app.route("/confirm/<int:key_id>/<string:salt>", methods=["GET"])
+def confirm(key_id: int, salt: str) -> Response:
     """
     Serve the confirmation page.
 
     :return: Confirmation page.
     """
-    return render_template("confirmation.html")
+    entity = datastore_client.get(datastore_client.key("participants", key_id))
+    if entity.get("salt") == salt:
+        entity.update({"pending": False})
+        datastore_client.put(entity)
+        email = entity.get("email")
+        first_name = entity.get("first-name")
+        confirm_email = Mail(
+            from_email="ne-pas-repondre@em5405.crydee.eu",
+            to_emails=email,
+            subject="Validation d'inscription",
+            plain_text_content=render_template("confirm.email.jinja2", name=first_name),
+        )
+        confirm_email.reply_to = ReplyTo(
+            "clubyosakura@yahoo.fr", "Club Nantes Yosakura"
+        )
+        try:
+            sendgrid_client = SendGridAPIClient(app.config["SENDGRID_API_KEY"])
+            pending_response = sendgrid_client.send(confirm_email)
+            app.logger.info(
+                "Sent confirm email to %s with status %d",
+                email,
+                pending_response.status_code,
+            )
+        except Exception as e:
+            app.logger.error("Could not send confirm email, with exception: %s", e)
+        return render_template("confirm.html.jinja2", success=True)
+    return render_template("confirm.html.jinja2", success=False)
 
 
 @app.route("/participants", methods=["GET"])
@@ -176,7 +266,8 @@ def participants() -> Response:
 
     :return: Json response.
     """
-    query = datastore_client.query(kind="participant")
+    query = datastore_client.query(kind="participants")
+    query.add_filter("pending", "=", False)
     participants = query.fetch()
     return jsonify(list(participants))
 

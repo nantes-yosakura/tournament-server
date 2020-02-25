@@ -1,4 +1,4 @@
 __pycache__
 .mypy_cache
 owner-credentials.json
-secret_key.py
+config_secrets.py
