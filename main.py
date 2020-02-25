@@ -13,7 +13,7 @@ from flask import (
 from flask_bootstrap import Bootstrap
 from flask_cors import CORS
 from flask_wtf import FlaskForm
-from google.cloud import datastore
+from google.cloud import firestore
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from sendgrid.helpers.mail import ReplyTo
@@ -27,7 +27,7 @@ app = Flask(__name__)
 app.config.from_pyfile("config_secrets.py")
 Bootstrap(app)
 CORS(app)
-datastore_client = datastore.Client()
+db = firestore.Client()
 
 
 HttpResponse = Union[FlaskResponse, WerkzeugResponse, str]
@@ -151,22 +151,19 @@ def index() -> Response:
         level = form.level.data
         club = form.club.data
         salt = token_urlsafe(32)
-        entity = datastore.Entity(key=datastore_client.key("participants"))
-        entity.update(
-            {
-                "pending": True,
-                "salt": salt,
-                "first-name": first_name,
-                "last-name": last_name,
-                "email": email,
-                "type": subscription,
-            }
-        )
+        participant = {
+            "pending": True,
+            "salt": salt,
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "type": subscription,
+        }
         if subscription == "player":
-            entity.update({"level": level, "club": club})
-        app.logger.info("Persisting %s", entity)
-        datastore_client.put(entity)
-        key_id = entity.id
+            participant.update({"level": level, "club": club})
+        app.logger.info("Persisting %s", participant)
+        _, participant_ref = db.collection("participants").add(participant)
+        participant_id = participant_ref.id
         pending_email = Mail(
             from_email="ne-pas-repondre@em5405.crydee.eu",
             to_emails=email,
@@ -189,7 +186,7 @@ def index() -> Response:
                 level=level,
                 club=club,
                 salt=salt,
-                key_id=key_id,
+                participant_id=participant_id,
             ),
         )
         pending_email.reply_to = ReplyTo(
@@ -223,24 +220,25 @@ def pending() -> Response:
     return render_template("pending.html.jinja2")
 
 
-@app.route("/confirm/<int:key_id>/<string:salt>", methods=["GET"])
-def confirm(key_id: int, salt: str) -> Response:
+@app.route("/confirm/<string:participant_id>/<string:salt>", methods=["GET"])
+def confirm(participant_id: str, salt: str) -> Response:
     """
     Serve the confirmation page.
 
     :return: Confirmation page.
     """
-    entity = datastore_client.get(datastore_client.key("participants", key_id))
-    if entity.get("salt") == salt:
-        entity.update({"pending": False})
-        datastore_client.put(entity)
-        email = entity.get("email")
-        first_name = entity.get("first-name")
+    participant_ref = db.collection("participants").document(participant_id)
+    participant = participant_ref.get()
+    if participant.get("salt") == salt:
+        participant_ref.update({"pending": False})
+        email = participant.get("email")
         confirm_email = Mail(
             from_email="ne-pas-repondre@em5405.crydee.eu",
             to_emails=email,
             subject="Validation d'inscription",
-            plain_text_content=render_template("confirm.email.jinja2", name=first_name),
+            plain_text_content=render_template(
+                "confirm.email.jinja2", name=participant.get("first_name")
+            ),
         )
         confirm_email.reply_to = ReplyTo(
             "clubyosakura@yahoo.fr", "Club Nantes Yosakura"
@@ -266,10 +264,12 @@ def participants() -> Response:
 
     :return: Json response.
     """
-    query = datastore_client.query(kind="participants")
-    query.add_filter("pending", "=", False)
-    participants = query.fetch()
-    return jsonify(list(participants))
+    query = db.collection("participants").where("pending", "==", False)
+    participants = [d.to_dict() for d in query.stream()]
+    for participant in participants:
+        del participant["salt"]
+        del participant["pending"]
+    return jsonify(participants)
 
 
 if __name__ == "__main__":
