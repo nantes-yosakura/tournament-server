@@ -9,14 +9,14 @@ certifi==2019.11.28       # via requests
 chardet==3.0.4            # via requests
 click==7.0                # via flask
 dominate==2.4.0           # via flask-bootstrap
-flask-bootstrap==3.3.7.1
-flask-cors==3.0.8
-flask-wtf==0.14.3
-flask==1.1.1
+flask-bootstrap==3.3.7.1  # via -r requirements.in
+flask-cors==3.0.8         # via -r requirements.in
+flask-wtf==0.14.3         # via -r requirements.in
+flask==1.1.1              # via -r requirements.in, flask-bootstrap, flask-cors, flask-wtf
 google-api-core[grpc]==1.16.0  # via google-cloud-core, google-cloud-firestore
 google-auth==1.11.0       # via google-api-core
 google-cloud-core==1.3.0  # via google-cloud-firestore
-google-cloud-firestore==1.6.2
+google-cloud-firestore==1.6.2  # via -r requirements.in
 googleapis-common-protos==1.51.0  # via google-api-core
 grpcio==1.27.1            # via google-api-core
 idna==2.8                 # via requests
@@ -30,7 +30,7 @@ python-http-client==3.2.5  # via sendgrid
 pytz==2019.3              # via google-api-core, google-cloud-firestore
 requests==2.22.0          # via google-api-core
 rsa==4.0                  # via google-auth
-sendgrid==6.1.2
+sendgrid==6.1.2           # via -r requirements.in
 six==1.14.0               # via flask-cors, google-api-core, google-auth, grpcio, protobuf
 urllib3==1.25.8           # via requests
 visitor==0.1.3            # via flask-bootstrap

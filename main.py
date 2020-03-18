@@ -1,7 +1,8 @@
 from http import HTTPStatus
 from logging import getLogger
+from re import compile as re_compile
 from secrets import token_urlsafe
-from typing import Any, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
 from flask import (
     Flask,
@@ -40,6 +41,24 @@ _levels = (
     + [("%dd" % i, "%d Dan" % i) for i in range(1, 9)]
     + [("%dp" % i, "%d Dan Pro" % i) for i in range(1, 10)]
 )
+
+
+_level_pattern = re_compile(r"(\d+)([kdp])")
+
+
+def _level_key(participant: Dict[str, Any]) -> int:
+    if "level" not in participant:
+        return -50
+    match = _level_pattern.match(participant["level"])
+    if match is None:
+        raise RuntimeError()
+    rank_str, rank_type = match.groups()
+    rank = int(rank_str)
+    if rank_type == "k":
+        rank = -rank
+    elif rank_type == "p":
+        rank += 8
+    return rank
 
 
 class DataRequiredIf:
@@ -269,7 +288,7 @@ def participants() -> Response:
     for participant in participants:
         del participant["salt"]
         del participant["pending"]
-    return jsonify(participants)
+    return jsonify(sorted(participants, key=_level_key, reverse=True))
 
 
 if __name__ == "__main__":
