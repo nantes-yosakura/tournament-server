@@ -14,18 +14,18 @@ click==7.0
     # via flask
 dominate==2.4.0
     # via flask-bootstrap
-flask-bootstrap==3.3.7.1
-    # via -r requirements.in
-flask-cors==3.0.9
-    # via -r requirements.in
-flask-wtf==0.14.3
-    # via -r requirements.in
 flask==1.1.1
     # via
     #   -r requirements.in
     #   flask-bootstrap
     #   flask-cors
     #   flask-wtf
+flask-bootstrap==3.3.7.1
+    # via -r requirements.in
+flask-cors==3.0.9
+    # via -r requirements.in
+flask-wtf==0.14.3
+    # via -r requirements.in
 google-api-core[grpc]==1.16.0
     # via
     #   google-cloud-core
@@ -50,16 +50,16 @@ jinja2==2.11.3
     # via flask
 markupsafe==1.1.1
     # via jinja2
-protobuf==3.11.3
+protobuf==3.15.0
     # via
     #   google-api-core
     #   googleapis-common-protos
-pyasn1-modules==0.2.8
-    # via google-auth
 pyasn1==0.4.8
     # via
     #   pyasn1-modules
     #   rsa
+pyasn1-modules==0.2.8
+    # via google-auth
 python-http-client==3.2.5
     # via sendgrid
 pytz==2019.3
